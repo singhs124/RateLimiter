@@ -1,6 +1,9 @@
 package com.sushant.RateLimiter.ratelimit.algorithm.distributed;
 
 import com.sushant.RateLimiter.ratelimit.algorithm.RateLimiter;
+import com.sushant.RateLimiter.ratelimit.config.PlanConfig;
+import com.sushant.RateLimiter.ratelimit.config.RateLimiterType;
+import com.sushant.RateLimiter.ratelimit.dto.LuaResult;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -13,31 +16,19 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 
-//@Service
+@Service
 @Slf4j
-//@RequiredArgsConstructor
 public class DistTokenBucketLimitierService implements RateLimiter {
     private DefaultRedisScript<List> luaScript;
 
-    private final long capacity;
-    private final long refillRate;
     private final StringRedisTemplate redisTemplate;
 
-    public DistTokenBucketLimitierService(StringRedisTemplate redisTemplate, long capacity, long refillRate){
-        this.capacity = capacity;
-        this.refillRate = refillRate;
+    public DistTokenBucketLimitierService(StringRedisTemplate redisTemplate){
         this.redisTemplate = redisTemplate;
-        initLua();
     }
 
-//    public DistTokenBucketLimitierService(StringRedisTemplate redisTemplate){
-//        this.redisTemplate = redisTemplate;
-//    }
-
-
-//    @PostConstruct
-    public void initLua(){
-        log.info("🟢 @PostConstruct init() STARTING");
+    @PostConstruct
+    public void init(){
         luaScript = new DefaultRedisScript<>();
         luaScript.setScriptSource(new ResourceScriptSource(new ClassPathResource("lua/token_bucket.lua")));
         luaScript.setResultType(List.class);
@@ -45,37 +36,22 @@ public class DistTokenBucketLimitierService implements RateLimiter {
     }
 
     @Override
-    public boolean tryConsume(String identifier, long tokens) {
-        String redisKey = "bucket:" + identifier;
-//        String redisKey = "bucket:user123";
-        long currentTime = Instant.now().toEpochMilli();
-        double refillRatePerSecond = refillRate/60.0 ;
-        try{
-            List result = redisTemplate.execute(
-                    luaScript,
-                    Collections.singletonList(redisKey),
-                    String.valueOf(capacity),
-                    String.valueOf(refillRatePerSecond),
-                    String.valueOf(currentTime),
-                    "1"
-            );
-            boolean allowed = ((Number)result.get(0)).longValue() == 1;
-            long availableTokens = ((Number)result.get(1)).longValue();
-//            boolean allowed = availableTokens >= 1;
-            log.debug("Redis Token Bucket - {}: {} (available: {})",
-                    identifier, allowed ? "ALLOWED" : "BLOCKED", availableTokens);
-            return allowed;
-        } catch (Exception e){
-            log.error("Redis error for {}, fail-open", identifier, e);
-            return true;
-        }
+    public RateLimiterType getType(){
+        return RateLimiterType.DIST_TOKEN_BUCKET;
     }
 
-
     @Override
-    public long getAvailableTokens(String identifier) {
+    public LuaResult tryConsume(String identifier, long tokens, PlanConfig planConfig) {
+        return execute(identifier,planConfig,true);
+    }
+
+    public long getAvailableTokens(String identifier, PlanConfig planConfig) {
+        return execute(identifier,planConfig,false).remaining();
+    }
+
+    private LuaResult execute(String identifier, PlanConfig planConfig, boolean isConsuming){
+        long capacity = planConfig.capacity(), refillRate = planConfig.refillRate();
         String redisKey = "bucket:" + identifier;
-//        String redisKey = "bucket:user123";
         long currentTime = Instant.now().toEpochMilli();
         double refillRatePerSecond = refillRate/60.0 ;
         try{
@@ -85,15 +61,16 @@ public class DistTokenBucketLimitierService implements RateLimiter {
                     String.valueOf(capacity),
                     String.valueOf(refillRatePerSecond),
                     String.valueOf(currentTime),
-                    "0"
+                    isConsuming ? "1":"0"
             );
-            long available = ((Number)result.get(1)).longValue();
-//            long availableTokens = ((Number)result.get(1)).longValue();
-            log.debug("Redis getAvailableTokens - {}: {}", identifier, available);
-            return Math.max(0, available);
+            boolean allowed = ((Number)result.get(0)).longValue() == 1;
+            long remaining = ((Number)result.get(1)).longValue();
+            log.debug("Redis Token Bucket - {}: {} (available: {})",
+                    identifier, allowed ? "ALLOWED" : "BLOCKED", remaining);
+            return new LuaResult(allowed, remaining);
         } catch (Exception e){
-            log.error("Redis error for {}, return 0", identifier, e);
-            return 0;
+            log.error("Redis error for {}, fail-open", identifier, e);
+            throw new RuntimeException("Redis Error"); //todo: Make it right.
         }
     }
 }
