@@ -2,10 +2,10 @@ package com.sushant.RateLimiter.ratelimit.controller;
 
 
 import com.sushant.RateLimiter.infra.dto.UserPrincipal;
+import com.sushant.RateLimiter.ratelimit.dto.LuaResult;
 import com.sushant.RateLimiter.ratelimit.dto.RateLimitReq;
 import com.sushant.RateLimiter.ratelimit.dto.RateLimitResponse;
-import com.sushant.RateLimiter.ratelimit.dto.RateLimitResult;
-import com.sushant.RateLimiter.ratelimit.service.RateLimitFacade;
+import com.sushant.RateLimiter.ratelimit.service.RateLimitingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/ratelimit")
 @RequiredArgsConstructor
 public class RateLimitController {
-    private final RateLimitFacade rateLimitFacade;
+    private final RateLimitingService rateLimitingService;
 
     @PostMapping("/checkLimit")
     public ResponseEntity<RateLimitResponse> checkLimit(Authentication auth, @RequestBody RateLimitReq body){
@@ -26,7 +26,7 @@ public class RateLimitController {
         String uuid = principal.uuid();
         String ratePlan = principal.ratePlan();
 
-        RateLimitResult result = rateLimitFacade.evaluate(uuid,ratePlan,body.algo());
+        LuaResult result = rateLimitingService.allowRequest(uuid,ratePlan,body.algo(),1L); //todo: check if we can remove tokens param
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-RateLimit-Remaining", String.valueOf(result.remaining()));
