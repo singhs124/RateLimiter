@@ -1,8 +1,8 @@
 package com.sushant.RateLimiter.infra.security;
 
-import com.sushant.RateLimiter.application.auth.dto.ApiKeyDTO;
-import com.sushant.RateLimiter.application.auth.provider.ApiKeyValidator;
-import com.sushant.RateLimiter.infra.cache.ApiKeyCacheService;
+import com.sushant.RateLimiter.auth.dto.ApiKeyDTO;
+import com.sushant.RateLimiter.auth.provider.ApiKeyValidator;
+import com.sushant.RateLimiter.infra.cache.ApiKeyLookupService;
 import com.sushant.RateLimiter.infra.dto.UserPrincipal;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,7 +26,7 @@ import java.util.List;
 public class RateLimiterApiKeyFilter extends OncePerRequestFilter {
 
     private final ApiKeyValidator apiKeyValidator;
-    private final ApiKeyCacheService apiKeyCacheService;
+    private final ApiKeyLookupService apiKeyLookupService;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -46,7 +46,7 @@ public class RateLimiterApiKeyFilter extends OncePerRequestFilter {
             return;
         }
         String uuid = (String) obj;
-        ApiKeyDTO data = apiKeyCacheService.lookup(uuid);
+        ApiKeyDTO data = apiKeyLookupService.find(uuid);
         if (data == null) {
             log.debug("Api Key is not Found");
             return;
