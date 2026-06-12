@@ -1,7 +1,6 @@
 package com.sushant.RateLimiter.infra.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.sushant.RateLimiter.common.util.Constants;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;

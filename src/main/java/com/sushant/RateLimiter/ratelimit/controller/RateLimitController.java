@@ -26,7 +26,7 @@ public class RateLimitController {
         String uuid = principal.uuid();
         String ratePlan = principal.ratePlan();
 
-        LuaResult result = rateLimitingService.allowRequest(uuid,ratePlan,body.algo(),1L); //todo: check if we can remove tokens param
+        LuaResult result = rateLimitingService.allowRequest(uuid,ratePlan,body.clientId(),body.algo(),1L); //todo: check if we can remove tokens param
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-RateLimit-Remaining", String.valueOf(result.remaining()));

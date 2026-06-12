@@ -19,11 +19,17 @@ public class RateLimitingService {
     private final PlanConfigRegistry planConfigRegistry;
     private final RateLimiterRegistry registry;
 
-    public LuaResult allowRequest(String clientId, String ratePlan, RateLimiterType algoOverride, long tokens){
+    public LuaResult allowRequest(String ownerId, String ratePlan, String clientId, RateLimiterType algoOverride, long tokens){
         PlanConfig config = planConfigRegistry.get(ratePlan);
         RateLimiter limiter = registry.resolve(algoOverride);
-        log.debug("Rate Limit Check: client id={} , plan={}, algorithm={}", clientId, ratePlan, algoOverride);
-        return limiter.tryConsume(clientId, tokens,config);
+        String identifier = buildIdentifier(ownerId,clientId);
+        log.debug("Rate Limit Check: identifier={} , plan={}, algorithm={}", identifier, ratePlan, algoOverride);
+        return limiter.tryConsume(identifier, tokens,config);
+    }
+
+    private String buildIdentifier(String ownerId, String clientId){
+        if(clientId == null || clientId.isBlank()) return ownerId;
+        return ownerId + ":" + clientId;
     }
 
 }
