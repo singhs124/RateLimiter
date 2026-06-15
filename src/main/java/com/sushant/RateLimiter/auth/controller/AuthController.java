@@ -3,6 +3,7 @@ package com.sushant.RateLimiter.auth.controller;
 //Login | Register
 
 import com.sushant.RateLimiter.auth.dto.AuthRequest;
+import com.sushant.RateLimiter.auth.dto.AuthTokenResDTO;
 import com.sushant.RateLimiter.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,25 +22,27 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @PostMapping("register")
-    public ResponseEntity<String> register(@RequestBody AuthRequest req) {
-        authService.registerUser(req.getEmail());
-        return new ResponseEntity<>("Proceed to login", HttpStatus.OK);
+    @PostMapping("register/initiate/")
+    public ResponseEntity<String> initiateRegister(@RequestBody AuthRequest req){
+        authService.initiateRegistration(req);
+        return new ResponseEntity<>("OTP sent to email", HttpStatus.OK);
     }
 
-    @PostMapping("login")
-    public ResponseEntity<String> login(@RequestBody AuthRequest req) {
-        boolean exists = authService.checkEmailExists(req.getEmail());
-        if (exists) {
-            return new ResponseEntity<>("Login successful", HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
-        }
+    @PostMapping("register/verify/")
+    public ResponseEntity<AuthTokenResDTO> verifyRegister(@RequestBody AuthRequest req){
+        AuthTokenResDTO authTokenResDTO = authService.verifyAndRegister(req);
+        return ResponseEntity.ok(authTokenResDTO);
     }
 
-//    @PostMapping("generateApiKey")
-//    public ResponseEntity<String> generateAPiKey(@RequestBody AuthRequest req) {
-//        String apiKey = authService.generateAPIkey(req.getEmail());
-//        return new ResponseEntity<>(apiKey, HttpStatus.OK);
-//    }
+    @PostMapping("login/initiate/")
+    public ResponseEntity<?> initiateLogin(@RequestBody AuthRequest req) {
+        authService.initiateLogin(req);
+        return ResponseEntity.ok("OTP sent to email");
+    }
+
+    @PostMapping("login/verify/")
+    public ResponseEntity<AuthTokenResDTO> verifyLogin(@RequestBody AuthRequest req) {
+        AuthTokenResDTO token = authService.verifyAndLogin(req);
+        return ResponseEntity.ok(token);
+    }
 }

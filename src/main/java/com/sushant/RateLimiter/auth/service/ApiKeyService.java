@@ -28,7 +28,7 @@ public class ApiKeyService {
     public String generateAPIkey(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidEmailException("User not found for email: " + email));
-        Boolean activeUserExists = userAPIRepository.existsByUserIdAndStatusNot(user.getId(), ApiKeyStatus.REVOKED);
+        boolean activeUserExists = userAPIRepository.existsByUserIdAndStatusNot(user.getId(), ApiKeyStatus.REVOKED);
         if(activeUserExists) return "You already have an Active Key for this Account";
 
         String uuid = ApiKeyUtils.encode(UUID.randomUUID());
