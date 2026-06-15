@@ -4,6 +4,7 @@ import com.sushant.RateLimiter.auth.entity.User;
 import com.sushant.RateLimiter.auth.exception.UserNotFoundException;
 import com.sushant.RateLimiter.auth.repo.UserRepository;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -11,9 +12,10 @@ import java.util.Optional;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class UserService {
 
-    private UserRepository userRepo;
+    private final UserRepository userRepo;
 
     @Transactional
     public Optional<User> createUser(String email){
@@ -21,8 +23,7 @@ public class UserService {
             log.debug("Existing User");
             return userRepo.findByEmail(email);
         }
-        User user = new User();
-        user.setEmail(email);
+        User user = User.builder().email(email).build();
         return Optional.of(userRepo.save(user));
     }
 
