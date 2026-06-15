@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=ratelimiter
+      - POSTGRES_USER=ratelimiter
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - postgres_data:/var/lib/postgres/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ratelimiter -d ratelimiter"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   redis:
     image: redis:7-alpine
     container_name: redis-limiter
@@ -12,7 +28,18 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ratelimiter
+      - SPRING_DATASOURCE_USERNAME=ratelimiter
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - AES_SECRET_KEY=${AES_SECRET_KEY}
+volumes:
+    postgres_data:
