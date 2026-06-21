@@ -6,11 +6,11 @@ import com.sushant.RateLimiter.auth.dto.AuthTokenResDTO;
 import com.sushant.RateLimiter.auth.entity.*;
 
 import com.sushant.RateLimiter.auth.exception.UserNotFoundException;
-import com.sushant.RateLimiter.auth.repo.UserOtpRepository;
 import com.sushant.RateLimiter.auth.repo.UserRepository;
 import com.sushant.RateLimiter.auth.repo.UserAPIRepository;
 import com.sushant.RateLimiter.auth.provider.ApiKeyGenerator;
 import com.sushant.RateLimiter.auth.util.*;
+import com.sushant.RateLimiter.infra.annotation.ReadOnlyConnection;
 import com.sushant.RateLimiter.infra.cache.ApiKeyCacheService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +25,6 @@ public class AuthService {
     private final AuthUtils authUtil;
     private final UserService userService;
     private final UserAPIRepository userAPIRepository;
-    private final UserOtpRepository authRepo;
     private final ApiKeyGenerator apiKeyGenerator;
     private final ApiKeyCacheService apiKeyCacheService;
     private final OtpService otpService;
@@ -42,6 +41,7 @@ public class AuthService {
         return email.matches(emailRegex);
     }
 
+    @ReadOnlyConnection
     public void initiateRegistration(AuthRequest authRequest){
         if(userRepository.existsByEmail(authRequest.getEmail())){
             log.debug("User Already Exists"); //todo: Add exception
@@ -61,6 +61,7 @@ public class AuthService {
         return authUtil.generateToken(user);
     }
 
+    @ReadOnlyConnection
     public void initiateLogin(AuthRequest authRequest) {
         if (!userRepository.existsByEmail(authRequest.getEmail())) {
             throw new UserNotFoundException("User Not Found");
@@ -68,6 +69,7 @@ public class AuthService {
         otpService.generateAndSend(authRequest);
     }
 
+    @ReadOnlyConnection
     public AuthTokenResDTO verifyAndLogin(AuthRequest authRequest) {
         otpService.validate(authRequest);
         User user = userRepository.findByEmail(authRequest.getEmail())
