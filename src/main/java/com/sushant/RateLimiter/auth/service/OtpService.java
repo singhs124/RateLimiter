@@ -3,7 +3,6 @@ package com.sushant.RateLimiter.auth.service;
 import com.sushant.RateLimiter.auth.dto.AuthRequest;
 import com.sushant.RateLimiter.auth.exception.InvalidOTPException;
 import com.sushant.RateLimiter.auth.provider.OTPGenerator;
-import com.sushant.RateLimiter.auth.repo.UserOtpRepository;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -16,7 +15,6 @@ import java.time.Duration;
 @Slf4j
 public class OtpService {
 
-    private final UserOtpRepository otpRepository;
     private final StringRedisTemplate redisTemplate;
     private static final Duration OTP_VALIDITY = Duration.ofMinutes(5);
     private static final Integer MAX_ATTEMPT = 5;

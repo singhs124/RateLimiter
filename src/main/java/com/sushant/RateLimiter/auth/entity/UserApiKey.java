@@ -31,11 +31,11 @@ public class UserApiKey {
 
     @Column(name = "plan_type")
     @Enumerated(EnumType.STRING)
-    private Plans planType;
+    private Plans planType; //todo: is it required? Already there in users table
 
     @UpdateTimestamp
     @Column(name = "last_used_at")
-    private LocalDateTime lastUsedAt;
+    private LocalDateTime lastUsedAt; //todo: is it used?
 
     @ManyToOne
     @JoinColumn(name = "user_id", referencedColumnName = "user_id")

@@ -1,0 +1,1 @@
+CREATE USER replicator WITH REPLICATION LOGIN PASSWORD 'replicator_pass';
