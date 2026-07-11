@@ -10,8 +10,9 @@ import com.sushant.RateLimiter.auth.repo.UserRepository;
 import com.sushant.RateLimiter.auth.repo.UserAPIRepository;
 import com.sushant.RateLimiter.auth.provider.ApiKeyGenerator;
 import com.sushant.RateLimiter.auth.util.*;
-import com.sushant.RateLimiter.infra.annotation.ReadOnlyConnection;
 import com.sushant.RateLimiter.infra.cache.ApiKeyCacheService;
+import com.sushant.RateLimiter.infra.config.ShardRouter;
+import com.sushant.RateLimiter.infra.dsRouting.ShardContextHolder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,40 +42,59 @@ public class AuthService {
         return email.matches(emailRegex);
     }
 
-    @ReadOnlyConnection
     public void initiateRegistration(AuthRequest authRequest){
-        if(userRepository.existsByEmail(authRequest.getEmail())){
-            log.debug("User Already Exists"); //todo: Add exception
-            return ;
+        ShardContextHolder.set(ShardRouter.resolveShardId(authRequest.getEmail()));
+        try{
+            if(userRepository.existsByEmail(authRequest.getEmail())){
+                log.debug("User Already Exists"); //todo: Add exception
+                return ;
+            }
+            otpService.generateAndSend(authRequest);
+        } finally {
+            ShardContextHolder.clear();
         }
-        otpService.generateAndSend(authRequest);
     }
 
     public AuthTokenResDTO verifyAndRegister(AuthRequest request){
-        otpService.validate(request);
+        ShardContextHolder.set(ShardRouter.resolveShardId(request.getEmail()));
+        try {
+            otpService.validate(request);
 
-        User user = User.builder()
-                .email(request.getEmail())
-                .planType(Plans.FREE)
-                .build();
-        userRepository.save(user);
-        return authUtil.generateToken(user);
-    }
-
-    @ReadOnlyConnection
-    public void initiateLogin(AuthRequest authRequest) {
-        if (!userRepository.existsByEmail(authRequest.getEmail())) {
-            throw new UserNotFoundException("User Not Found");
+            User user = User.builder()
+                    .email(request.getEmail())
+                    .planType(Plans.FREE)
+                    .build();
+            userRepository.save(user);
+            return authUtil.generateToken(user);
+        } finally {
+            ShardContextHolder.clear();
         }
-        otpService.generateAndSend(authRequest);
     }
 
-    @ReadOnlyConnection
+    public void initiateLogin(AuthRequest authRequest) {
+        ShardContextHolder.set(ShardRouter.resolveShardId(authRequest.getEmail()));
+        try{
+            validateUser(authRequest);
+            otpService.generateAndSend(authRequest);
+        } finally {
+            ShardContextHolder.clear();
+        }
+    }
+
     public AuthTokenResDTO verifyAndLogin(AuthRequest authRequest) {
-        otpService.validate(authRequest);
-        User user = userRepository.findByEmail(authRequest.getEmail())
+        ShardContextHolder.set(ShardRouter.resolveShardId(authRequest.getEmail()));
+        try{
+            otpService.validate(authRequest);
+            User user = validateUser(authRequest);
+            return authUtil.generateToken(user);
+        } finally {
+            ShardContextHolder.clear();
+        }
+    }
+
+    private User validateUser(AuthRequest authRequest){
+        return userRepository.findByEmail(authRequest.getEmail())
                 .orElseThrow(()->new UserNotFoundException("User Not Found"));
-        return authUtil.generateToken(user);
     }
     // Todo: Revoke APi Key
 }
