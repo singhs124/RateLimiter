@@ -11,6 +11,8 @@ import com.sushant.RateLimiter.auth.repo.UserRepository;
 import com.sushant.RateLimiter.auth.util.ApiKeyUtils;
 import com.sushant.RateLimiter.auth.util.SHAUtils;
 import com.sushant.RateLimiter.infra.cache.ApiKeyCacheService;
+import com.sushant.RateLimiter.infra.config.ShardRouter;
+import com.sushant.RateLimiter.infra.dsRouting.ShardContextHolder;
 import lombok.Data;
 import org.springframework.stereotype.Service;
 
@@ -26,29 +28,34 @@ public class ApiKeyService {
     private final ApiKeyCacheService apiKeyCacheService;
 
     public String generateAPIkey(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidEmailException("User not found for email: " + email));
-        boolean activeUserExists = userAPIRepository.existsByUserIdAndStatusNot(user.getId(), ApiKeyStatus.REVOKED);
-        if(activeUserExists) return "You already have an Active Key for this Account";
+        ShardContextHolder.set(ShardRouter.resolveShardId(email));
+        try{
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new InvalidEmailException("User not found for email: " + email));
+            boolean activeUserExists = userAPIRepository.existsByUserIdAndStatusNot(user.getId(), ApiKeyStatus.REVOKED);
+            if(activeUserExists) return "You already have an Active Key for this Account";
 
-        String uuid = ApiKeyUtils.encode(UUID.randomUUID());
-        String plainKey = apiKeyGenerator.generateKey(uuid);
-        String hashedKey = SHAUtils.generateSHA256Hash(plainKey);
+            String uuid = ApiKeyUtils.encode(UUID.randomUUID());
+            String plainKey = apiKeyGenerator.generateKey(uuid);
+            String hashedKey = SHAUtils.generateSHA256Hash(plainKey);
 
-        UserApiKey userApiKey = new UserApiKey();
-        userApiKey.setKeyHashed(hashedKey);
-        userApiKey.setUser(user);
-        userApiKey.setStatus(ApiKeyStatus.ACTIVE);
-        userApiKey.setKeyPrefix(plainKey.substring(0, 4));
-        userApiKey.setPlanType(user.getPlanType());
-        userApiKey.setKeyLookup(uuid);
+            UserApiKey userApiKey = new UserApiKey();
+            userApiKey.setKeyHashed(hashedKey);
+            userApiKey.setUser(user);
+            userApiKey.setStatus(ApiKeyStatus.ACTIVE);
+            userApiKey.setKeyPrefix(plainKey.substring(0, 4));
+            userApiKey.setPlanType(user.getPlanType());
+            userApiKey.setKeyLookup(uuid);
 
-        userAPIRepository.save(userApiKey);
+            userAPIRepository.save(userApiKey);
 
-//      Todo: if redis is not up, then skip caching, instead of crashing
-        ApiKeyDTO apiKeyDTO = apiKeyCacheService.mapToDto(userApiKey, uuid);
-        apiKeyCacheService.populate(uuid, apiKeyDTO);
+    //      Todo: if redis is not up, then skip caching, instead of crashing
+            ApiKeyDTO apiKeyDTO = apiKeyCacheService.mapToDto(userApiKey, uuid);
+            apiKeyCacheService.populate(uuid, apiKeyDTO);
 
-        return plainKey;
+            return plainKey;
+        } finally {
+            ShardContextHolder.clear();
+        }
     }
 }

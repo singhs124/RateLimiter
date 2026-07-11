@@ -1,15 +1,15 @@
 services:
-  postgres-primary:
+  shard0-primary:
     image: postgres:16-alpine
-    container_name: postgres-primary
+    container_name: postgres-0-primary
     ports:
-      - "5432:5432"
+      - "5440:5432"
     environment:
       - POSTGRES_DB=ratelimiter
       - POSTGRES_USER=ratelimiter
       - POSTGRES_PASSWORD=root
     volumes:
-      - postgres_primary_data:/var/lib/postgresql/data
+      - postgres_0_data_primary:/var/lib/postgresql/data
       - ./primary-init:/docker-entrypoint-initdb.d
     command: >
       postgres  -c wal_level=replica
@@ -17,28 +17,148 @@ services:
                 -c max_replication_slots=10
                 -c hot_standby=on
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U ratelimiter -d ratelimiter"]
+      test: [ "CMD-SHELL","pg_isready -U ratelimiter -d ratelimiter" ]
       interval: 10s
       timeout: 5s
       retries: 5
-  postgres-replica:
+  shard0-replica:
     image: postgres:16-alpine
-    container_name: postgres-replica
+    container_name: postgres-0-replica
     ports:
-      - "5433:5432"
+      - "5430:5432"
     depends_on:
-      postgres-primary:
+      shard0-primary:
         condition: service_healthy
     environment:
       - PGPASSWORD=replicator_pass
     command: >
       bash -c "
-      until pg_basebackup -h postgres-primary -D /var/lib/postgresql/data -U replicator -vP -R;
+      until pg_basebackup -h shard0-primary -D /var/lib/postgresql/data -U replicator -vP -R;
       do echo 'Waiting for primary...'; sleep 2; done &&
       exec docker-entrypoint.sh postgres
       "
     volumes:
-      - postgres_replica_data:/var/lib/postgresql/data
+      - postgres_0_data_replica:/var/lib/postgresql/data
+  shard1-primary:
+    image: postgres:16-alpine
+    container_name: postgres-1-primary
+    ports:
+      - "5441:5432"
+    environment:
+      - POSTGRES_DB=ratelimiter
+      - POSTGRES_USER=ratelimiter
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - postgres_1_data_primary:/var/lib/postgresql/data
+      - ./primary-init:/docker-entrypoint-initdb.d
+    command: >
+      postgres  -c wal_level=replica
+                -c max_wal_senders=10
+                -c max_replication_slots=10
+                -c hot_standby=on
+    healthcheck:
+      test: [ "CMD-SHELL","pg_isready -U ratelimiter -d ratelimiter" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  shard1-replica:
+    image: postgres:16-alpine
+    container_name: postgres-1-replica
+    ports:
+      - "5431:5432"
+    depends_on:
+      shard1-primary:
+        condition: service_healthy
+    environment:
+      - PGPASSWORD=replicator_pass
+    command: >
+      bash -c "
+      until pg_basebackup -h shard1-primary -D /var/lib/postgresql/data -U replicator -vP -R;
+      do echo 'Waiting for primary...'; sleep 2; done &&
+      exec docker-entrypoint.sh postgres
+      "
+    volumes:
+      - postgres_1_data_replica:/var/lib/postgresql/data
+  shard2-primary:
+    image: postgres:16-alpine
+    container_name: postgres-2-primary
+    ports:
+      - "5442:5432"
+    environment:
+      - POSTGRES_DB=ratelimiter
+      - POSTGRES_USER=ratelimiter
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - postgres_2_data_primary:/var/lib/postgresql/data
+      - ./primary-init:/docker-entrypoint-initdb.d
+    command: >
+      postgres  -c wal_level=replica
+                -c max_wal_senders=10
+                -c max_replication_slots=10
+                -c hot_standby=on
+    healthcheck:
+      test: [ "CMD-SHELL","pg_isready -U ratelimiter -d ratelimiter" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  shard2-replica:
+    image: postgres:16-alpine
+    container_name: postgres-2-replica
+    ports:
+      - "5432:5432"
+    depends_on:
+      shard2-primary:
+        condition: service_healthy
+    environment:
+      - PGPASSWORD=replicator_pass
+    command: >
+      bash -c "
+      until pg_basebackup -h shard2-primary -D /var/lib/postgresql/data -U replicator -vP -R;
+      do echo 'Waiting for primary...'; sleep 2; done &&
+      exec docker-entrypoint.sh postgres
+      "
+    volumes:
+      - postgres_2_data_replica:/var/lib/postgresql/data
+  shard3-primary:
+    image: postgres:16-alpine
+    container_name: postgres-3-primary
+    ports:
+      - "5443:5432"
+    environment:
+      - POSTGRES_DB=ratelimiter
+      - POSTGRES_USER=ratelimiter
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - postgres_3_data_primary:/var/lib/postgresql/data
+      - ./primary-init:/docker-entrypoint-initdb.d
+    command: >
+      postgres  -c wal_level=replica
+                -c max_wal_senders=10
+                -c max_replication_slots=10
+                -c hot_standby=on
+    healthcheck:
+      test: [ "CMD-SHELL","pg_isready -U ratelimiter -d ratelimiter" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  shard3-replica:
+    image: postgres:16-alpine
+    container_name: postgres-3-replica
+    ports:
+      - "5433:5432"
+    depends_on:
+      shard3-primary:
+        condition: service_healthy
+    environment:
+      - PGPASSWORD=replicator_pass
+    command: >
+      bash -c "
+      until pg_basebackup -h shard3-primary -D /var/lib/postgresql/data -U replicator -vP -R;
+      do echo 'Waiting for primary...'; sleep 2; done &&
+      exec docker-entrypoint.sh postgres
+      "
+    volumes:
+      - postgres_3_data_replica:/var/lib/postgresql/data
   redis:
     image: redis:7-alpine
     container_name: redis-limiter
@@ -52,19 +172,22 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      postgres-primary:
+      shard3-primary:
         condition: service_healthy
       redis:
         condition: service_started
     environment:
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ratelimiter
-      - SPRING_DATASOURCE_USERNAME=ratelimiter
-      - SPRING_DATASOURCE_PASSWORD=root
       - SPRING_JPA_HIBERNATE_DDL_AUTO=none
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - AES_SECRET_KEY=${AES_SECRET_KEY}
 volumes:
-    postgres_primary_data:
-    postgres_replica_data:
+    postgres_0_data_primary:
+    postgres_0_data_replica:
+    postgres_1_data_primary:
+    postgres_1_data_replica:
+    postgres_2_data_primary:
+    postgres_2_data_replica:
+    postgres_3_data_primary:
+    postgres_3_data_replica:
